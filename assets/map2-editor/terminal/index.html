@@ -4837,11 +4837,15 @@
                 this.syncLayerPanelState();
                 this.updateWorkspaceChromeLayout();
                 const initialRect = this.canvas.getBoundingClientRect();
-                const webViewOffset = document.documentElement.classList.contains('web-embed');
-                this.state.panX = initialRect.width * (1 - this.state.zoom) / 2 + (webViewOffset ? 220 : 0);
-                this.state.panY = initialRect.height * (1 - this.state.zoom) / 2 + (webViewOffset ? 125 : 0);
+                const webCenterCorrection = document.documentElement.classList.contains('web-embed') ? 40 * this.state.zoom : 0;
+                this.state.panX = initialRect.width * (1 - this.state.zoom) / 2 + webCenterCorrection;
+                this.state.panY = initialRect.height * (1 - this.state.zoom) / 2;
                 this.updateTransform();
                 window.addEventListener('resize', () => this.updateWorkspaceChromeLayout());
+                if (window.ResizeObserver) {
+                    this._workspaceResizeObserver = new ResizeObserver(() => this.updateWorkspaceChromeLayout());
+                    this._workspaceResizeObserver.observe(this.canvas);
+                }
                 document.querySelectorAll('.map-card-type').forEach(label => {
                     label.textContent = label.textContent.replace(/^传感器类型：/, '');
                 });
@@ -4856,6 +4860,22 @@
                 this.updateMapDisplay();
                 this.syncNoiseDots();
                 this.syncRackCategories();
+                requestAnimationFrame(() => requestAnimationFrame(() => {
+                    const settledRect = this.canvas.getBoundingClientRect();
+                    const settledCorrection = document.documentElement.classList.contains('web-embed') ? 40 * this.state.zoom : 0;
+                    this.state.panX = settledRect.width * (1 - this.state.zoom) / 2 + settledCorrection;
+                    this.state.panY = settledRect.height * (1 - this.state.zoom) / 2;
+                    this.updateTransform();
+                    this.updateWorkspaceChromeLayout();
+                }));
+                setTimeout(() => {
+                    const settledRect = this.canvas.getBoundingClientRect();
+                    const settledCorrection = document.documentElement.classList.contains('web-embed') ? 40 * this.state.zoom : 0;
+                    this.state.panX = settledRect.width * (1 - this.state.zoom) / 2 + settledCorrection;
+                    this.state.panY = settledRect.height * (1 - this.state.zoom) / 2;
+                    this.updateTransform();
+                    this.updateWorkspaceChromeLayout();
+                }, 360);
                 // Set initial active state for area dropdown button
                 const areaBtn = document.getElementById('areaDropdownBtn');
                 if (areaBtn && this.state.mode === 'draw' && ['rect', 'circle', 'line'].includes(this.state.currentShape)) {
@@ -15746,9 +15766,9 @@
             showGlobalView() {
                 const rect = this.canvas.getBoundingClientRect();
                 const zoom = document.documentElement.classList.contains('web-embed') ? 0.72 : 0.58;
-                const webViewOffset = document.documentElement.classList.contains('web-embed');
-                const panX = rect.width * (1 - zoom) / 2 + (webViewOffset ? 220 : 0);
-                const panY = rect.height * (1 - zoom) / 2 + (webViewOffset ? 125 : 0);
+                const webCenterCorrection = document.documentElement.classList.contains('web-embed') ? 40 * zoom : 0;
+                const panX = rect.width * (1 - zoom) / 2 + webCenterCorrection;
+                const panY = rect.height * (1 - zoom) / 2;
                 this.state.viewPerspective = 'global';
                 this.syncViewPerspectiveButton();
                 this.animateViewTransform(zoom, panX, panY);
