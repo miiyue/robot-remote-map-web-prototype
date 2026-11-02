@@ -4858,11 +4858,15 @@
                 this.syncLayerPanelState();
                 this.updateWorkspaceChromeLayout();
                 const initialRect = this.canvas.getBoundingClientRect();
-                const webViewOffset = document.documentElement.classList.contains('web-embed');
-                this.state.panX = initialRect.width * (1 - this.state.zoom) / 2 + (webViewOffset ? 220 : 0);
-                this.state.panY = initialRect.height * (1 - this.state.zoom) / 2 + (webViewOffset ? 125 : 0);
+                const webCenterCorrection = document.documentElement.classList.contains('web-embed') ? 40 * this.state.zoom : 0;
+                this.state.panX = initialRect.width * (1 - this.state.zoom) / 2 + webCenterCorrection;
+                this.state.panY = initialRect.height * (1 - this.state.zoom) / 2;
                 this.updateTransform();
                 window.addEventListener('resize', () => this.updateWorkspaceChromeLayout());
+                if (window.ResizeObserver) {
+                    this._workspaceResizeObserver = new ResizeObserver(() => this.updateWorkspaceChromeLayout());
+                    this._workspaceResizeObserver.observe(this.canvas);
+                }
                 document.querySelectorAll('.map-card-type').forEach(label => {
                     label.textContent = label.textContent.replace(/^传感器类型：/, '');
                 });
@@ -4877,6 +4881,22 @@
                 this.updateMapDisplay();
                 this.syncNoiseDots();
                 this.syncRackCategories();
+                requestAnimationFrame(() => requestAnimationFrame(() => {
+                    const settledRect = this.canvas.getBoundingClientRect();
+                    const settledCorrection = document.documentElement.classList.contains('web-embed') ? 40 * this.state.zoom : 0;
+                    this.state.panX = settledRect.width * (1 - this.state.zoom) / 2 + settledCorrection;
+                    this.state.panY = settledRect.height * (1 - this.state.zoom) / 2;
+                    this.updateTransform();
+                    this.updateWorkspaceChromeLayout();
+                }));
+                setTimeout(() => {
+                    const settledRect = this.canvas.getBoundingClientRect();
+                    const settledCorrection = document.documentElement.classList.contains('web-embed') ? 40 * this.state.zoom : 0;
+                    this.state.panX = settledRect.width * (1 - this.state.zoom) / 2 + settledCorrection;
+                    this.state.panY = settledRect.height * (1 - this.state.zoom) / 2;
+                    this.updateTransform();
+                    this.updateWorkspaceChromeLayout();
+                }, 360);
                 // Set initial active state for area dropdown button
                 const areaBtn = document.getElementById('areaDropdownBtn');
                 if (areaBtn && this.state.mode === 'draw' && ['rect', 'circle', 'line'].includes(this.state.currentShape)) {
@@ -14485,18 +14505,6 @@
                 return parent?.properties?.ridePoint === el.id || el.name === '乘梯点';
             }
 
-            renderRobotHeadingEditor(point, helpText) {
-                const heading = this.normalizeHeading(point?.rotation);
-                return '<div class="lp-editor-section">'
-                    + '<label class="lp-editor-label" for="returnPointHeading">机器人朝向</label>'
-                    + '<div class="return-heading-stepper"><button type="button" aria-label="朝向减小5度" onclick="app.adjustReturnPointHeading(-5)">−</button><div class="return-heading-value"><input id="returnPointHeading" type="number" inputmode="numeric" min="0" max="359" step="5" value="' + heading + '" oninput="app.previewReturnPointHeading(this.value)" onchange="app.commitReturnPointHeading(this.value)"><span class="return-heading-unit">°</span></div><button type="button" aria-label="朝向增加5度" onclick="app.adjustReturnPointHeading(5)">＋</button></div>'
-                    + '<div class="return-heading-presets">'
-                    + [0, 90, 180, 270].map(value => '<button type="button" class="return-heading-preset ' + (heading === value ? 'active' : '') + '" data-return-heading="' + value + '" onclick="app.setReturnPointHeading(' + value + ')">' + value + '°</button>').join('')
-                    + '</div>'
-                    + '<div class="lp-editor-help">' + this.escapeHtml(helpText) + '</div>'
-                    + '</div>';
-            }
-
             renderLayerEditor(el) {
                 const info = TOOL_TYPES[el.type] || { name: el.type };
                 const terminalModal = !document.documentElement.classList.contains('web-embed');
@@ -15830,9 +15838,9 @@
             showGlobalView() {
                 const rect = this.canvas.getBoundingClientRect();
                 const zoom = document.documentElement.classList.contains('web-embed') ? 0.72 : 0.58;
-                const webViewOffset = document.documentElement.classList.contains('web-embed');
-                const panX = rect.width * (1 - zoom) / 2 + (webViewOffset ? 220 : 0);
-                const panY = rect.height * (1 - zoom) / 2 + (webViewOffset ? 125 : 0);
+                const webCenterCorrection = document.documentElement.classList.contains('web-embed') ? 40 * zoom : 0;
+                const panX = rect.width * (1 - zoom) / 2 + webCenterCorrection;
+                const panY = rect.height * (1 - zoom) / 2;
                 this.state.viewPerspective = 'global';
                 this.syncViewPerspectiveButton();
                 this.animateViewTransform(zoom, panX, panY);
