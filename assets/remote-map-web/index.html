@@ -56,7 +56,7 @@ document.querySelector('#importBtn').onclick=()=>{showToast('地图导入成功'
 addEventListener('message',e=>{if(e.data?.type==='remote-map-scene'){const scene=e.data.scene;if(scene==='login-error'){go('login');document.querySelector('#loginError').hidden=false}else if(scene==='pull-error'){go('select');showToast('地图拉取失败，请稍后重试')}else if(scene==='import-error'){go('import');showToast('地图文件解析失败，请检查文件后重试')}else go(scene)}});
 const initial=location.hash.match(/\/([^/]+)$/)?.[1]||'login';if(pages.some(p=>p.dataset.page===initial))go(initial);
 const webEditorBody=document.querySelector('.editor-page .editor-body');
-if(webEditorBody){const integrated=document.createElement('div');integrated.className='integrated-map-editor';integrated.innerHTML='<iframe src="../map2-editor/terminal/index.html?embed=web-v16&rev=202611021730" title="地图元素编辑器"></iframe>';webEditorBody.prepend(integrated)}
+if(webEditorBody){const integrated=document.createElement('div');integrated.className='integrated-map-editor';integrated.innerHTML='<iframe src="../map2-editor/terminal/index.html?embed=web-v16&rev=202611021745" title="地图元素编辑器"></iframe>';webEditorBody.prepend(integrated)}
 </script>
 </body>
 </html>

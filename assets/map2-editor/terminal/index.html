@@ -1494,6 +1494,15 @@
             pointer-events: none;
             z-index: 1085;
         }
+        .anchor-alignment-guide {
+            position: absolute;
+            height: 0;
+            border-top: 2px dashed #1683E6;
+            transform-origin: 0 50%;
+            pointer-events: none;
+            z-index: 2950;
+            filter: drop-shadow(0 0 2px rgba(22,131,230,.28));
+        }
         .segment-actions {
             position: absolute;
             bottom: 84px;
@@ -3226,11 +3235,22 @@
         .lp-name { font-size: 18px; }
         .lp-detail { font-size: 15px; }
         .bottom-toolbar { height: auto; bottom: 18px; padding: 4px 9px; gap: 0; }
-        #shapeArea, .toolbar-common { min-height: 56px; }
-        .mode-item, .shape-item, .pen-btn, .area-dropdown-btn, .panel-toggle { width: 56px; height: 56px; }
-        .area-chevron-btn { width: 40px; height: 56px; }
-        .mode-item svg, .panel-toggle svg { width: 28px; height: 28px; }
-        .shape-item svg, .pen-btn svg { width: 26px; height: 26px; }
+        #shapeArea, .toolbar-common { min-height: 60px; }
+        .bottom-toolbar .mode-item,
+        .bottom-toolbar .shape-item,
+        .bottom-toolbar .pen-btn,
+        .bottom-toolbar .area-dropdown-btn,
+        .bottom-toolbar .panel-toggle,
+        .bottom-toolbar .point-tool-btn,
+        .bottom-toolbar .tb-btn { width: 60px; height: 60px; }
+        .area-chevron-btn { width: 40px; height: 60px; }
+        .bottom-toolbar .mode-item svg,
+        .bottom-toolbar .shape-item svg,
+        .bottom-toolbar .pen-btn svg,
+        .bottom-toolbar .area-dropdown-btn > svg,
+        .bottom-toolbar .point-tool-btn svg,
+        .bottom-toolbar .tb-btn svg,
+        .bottom-toolbar .panel-toggle svg { width: 30px; height: 30px; }
         .save-group { bottom: 100px; height: 56px; border-radius: 28px; }
         .save-group.layer-open, .zoom-group.layer-open { right: 336px; }
         .save-action { height: 56px; font-size: 18px; }
@@ -4693,6 +4713,7 @@
                     selectedSegmentIndex: -1,
                     selectedAnchorIndex: -1,
                     selectedAnchorType: null,
+                    anchorAlignmentGuide: null,
                     anchorSnapActive: false,
                     zoom: document.documentElement.classList.contains('web-embed') ? 0.72 : 0.58, panX: 0, panY: 0, viewPerspective: 'global', mapRotation: 0,
                     lastTouchTime: 0,
@@ -4837,15 +4858,11 @@
                 this.syncLayerPanelState();
                 this.updateWorkspaceChromeLayout();
                 const initialRect = this.canvas.getBoundingClientRect();
-                const webCenterCorrection = document.documentElement.classList.contains('web-embed') ? 40 * this.state.zoom : 0;
-                this.state.panX = initialRect.width * (1 - this.state.zoom) / 2 + webCenterCorrection;
-                this.state.panY = initialRect.height * (1 - this.state.zoom) / 2;
+                const webViewOffset = document.documentElement.classList.contains('web-embed');
+                this.state.panX = initialRect.width * (1 - this.state.zoom) / 2 + (webViewOffset ? 220 : 0);
+                this.state.panY = initialRect.height * (1 - this.state.zoom) / 2 + (webViewOffset ? 125 : 0);
                 this.updateTransform();
                 window.addEventListener('resize', () => this.updateWorkspaceChromeLayout());
-                if (window.ResizeObserver) {
-                    this._workspaceResizeObserver = new ResizeObserver(() => this.updateWorkspaceChromeLayout());
-                    this._workspaceResizeObserver.observe(this.canvas);
-                }
                 document.querySelectorAll('.map-card-type').forEach(label => {
                     label.textContent = label.textContent.replace(/^传感器类型：/, '');
                 });
@@ -4860,22 +4877,6 @@
                 this.updateMapDisplay();
                 this.syncNoiseDots();
                 this.syncRackCategories();
-                requestAnimationFrame(() => requestAnimationFrame(() => {
-                    const settledRect = this.canvas.getBoundingClientRect();
-                    const settledCorrection = document.documentElement.classList.contains('web-embed') ? 40 * this.state.zoom : 0;
-                    this.state.panX = settledRect.width * (1 - this.state.zoom) / 2 + settledCorrection;
-                    this.state.panY = settledRect.height * (1 - this.state.zoom) / 2;
-                    this.updateTransform();
-                    this.updateWorkspaceChromeLayout();
-                }));
-                setTimeout(() => {
-                    const settledRect = this.canvas.getBoundingClientRect();
-                    const settledCorrection = document.documentElement.classList.contains('web-embed') ? 40 * this.state.zoom : 0;
-                    this.state.panX = settledRect.width * (1 - this.state.zoom) / 2 + settledCorrection;
-                    this.state.panY = settledRect.height * (1 - this.state.zoom) / 2;
-                    this.updateTransform();
-                    this.updateWorkspaceChromeLayout();
-                }, 360);
                 // Set initial active state for area dropdown button
                 const areaBtn = document.getElementById('areaDropdownBtn');
                 if (areaBtn && this.state.mode === 'draw' && ['rect', 'circle', 'line'].includes(this.state.currentShape)) {
@@ -5644,6 +5645,9 @@
                         const dy = p.y - this.state.dragStart.y;
                         this.updateAnchorPosition(el, this.state.dragAnchorIndex, dx, dy);
                         if (el.shape !== 'circle') this.updateAnchorSnap(el, this.state.dragAnchorIndex, p);
+                        if (el.shape !== 'circle' && !this.state.anchorSnapActive) this.updateAnchorAlignment(el, this.state.dragAnchorIndex, p);
+                        else this.state.anchorAlignmentGuide = null;
+                        if (['pen', 'curve'].includes(el.shape)) this.straightenAllPathSegments(el);
                         this.state.dragStart = { x: p.x, y: p.y };
                         this.requestRender();
                         if (el.shape !== 'circle') this.showAnchorLoupe(this.getAnchorLoupePoint(el, this.state.dragAnchorIndex) || p);
@@ -5716,6 +5720,7 @@
                     const el = this.state.elements.find(item => item.id === this.state.selectedId);
                     this.closeEditedPathIfNeeded(el, this.state.dragAnchorIndex);
                     this.state.anchorSnapActive = false;
+                    this.state.anchorAlignmentGuide = null;
                     this.state.isDraggingAnchor = false;
                     this.state.dragAnchorIndex = -1;
                     this.state.dragStart = null;
@@ -10032,7 +10037,7 @@
                         curveBtn.title = '打点';
                         curveBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 3v5M12 16v5M3 12h5M16 12h5"/><circle cx="12" cy="12" r="3"/></svg>';
                     } else {
-                        const allowPenCurve = document.documentElement.classList.contains('web-embed');
+                        const allowPenCurve = false;
                         curveBtn.style.display = this.state.isPenDrawing && allowPenCurve ? 'flex' : 'none';
                         curveBtn.title = '曲线';
                         curveBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M4 18C8 6 16 6 20 18"/></svg>';
@@ -10397,6 +10402,58 @@
                     last.y = pointer.y;
                 }
                 this.state.anchorSnapActive = shouldSnap;
+            }
+
+            updateAnchorAlignment(el, draggedAnchorIndex, pointer) {
+                this.state.anchorAlignmentGuide = null;
+                if (!el || !['pen', 'curve'].includes(el.shape) || !el.anchors?.[draggedAnchorIndex]) return;
+                const anchors = el.anchors;
+                const count = anchors.length;
+                const point = anchors[draggedAnchorIndex];
+                if (pointer) {
+                    point.x = pointer.x;
+                    point.y = pointer.y;
+                }
+                const previousIndex = draggedAnchorIndex > 0 ? draggedAnchorIndex - 1 : (el.closed ? count - 1 : -1);
+                const nextIndex = draggedAnchorIndex < count - 1 ? draggedAnchorIndex + 1 : (el.closed ? 0 : -1);
+                const previous = previousIndex >= 0 ? anchors[previousIndex] : null;
+                const next = nextIndex >= 0 ? anchors[nextIndex] : null;
+                const threshold = 8 / this.state.zoom;
+                let best = null;
+                const offer = candidate => {
+                    if (candidate.distance <= threshold && (!best || candidate.distance < best.distance)) best = candidate;
+                };
+                if (previous && next) {
+                    const dx = next.x - previous.x;
+                    const dy = next.y - previous.y;
+                    const lengthSquared = dx * dx + dy * dy;
+                    if (lengthSquared > 1) {
+                        const t = ((point.x - previous.x) * dx + (point.y - previous.y) * dy) / lengthSquared;
+                        const projected = { x: previous.x + t * dx, y: previous.y + t * dy };
+                        offer({ distance: Math.hypot(point.x - projected.x, point.y - projected.y), point: projected, from: previous, to: next });
+                    }
+                }
+                [previous, next].filter(Boolean).forEach(reference => {
+                    offer({ distance: Math.abs(point.x - reference.x), point: { x: reference.x, y: point.y }, from: reference, to: { x: reference.x, y: point.y } });
+                    offer({ distance: Math.abs(point.y - reference.y), point: { x: point.x, y: reference.y }, from: reference, to: { x: point.x, y: reference.y } });
+                });
+                if (!best) return;
+                point.x = best.point.x;
+                point.y = best.point.y;
+                this.state.anchorAlignmentGuide = { x1: best.from.x, y1: best.from.y, x2: best.to.x, y2: best.to.y };
+                this.recalculatePathBounds(el);
+            }
+
+            straightenAllPathSegments(el) {
+                if (!el || !['pen', 'curve'].includes(el.shape) || !el.anchors?.length) return;
+                const segmentCount = this.getPathSegmentCount(el);
+                el.controls = [];
+                for (let index = 0; index < segmentCount; index++) {
+                    const a = el.anchors[index];
+                    const b = el.anchors[(index + 1) % el.anchors.length];
+                    el.controls.push({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+                }
+                this.recalculatePathBounds(el);
             }
 
             startCenterPenPath() {
@@ -10890,7 +10947,8 @@
                 this.state.selectedId = el.id;
                 this.state.selectedAnchorIndex = -1;
                 this.state.selectedAnchorType = null;
-                if (['pen', 'curve', 'circle'].includes(el.shape)) this.state.selectedSegmentIndex = 0;
+                if (['pen', 'curve'].includes(el.shape)) this.state.selectedSegmentIndex = 0;
+                else this.state.selectedSegmentIndex = -1;
                 this.syncSelectionActions();
                 this.render();
                 this.updatePathActions();
@@ -11653,11 +11711,12 @@
                 this.canvas.appendChild(line);
             }
 
-            renderAddAnchorControls(el, anchors) {
+            renderAddAnchorControls(el, anchors, onlyIndex = null) {
                 if (el.type === 'elevator' || el.type === 'vehicle-speed-bump') return;
                 const threshold = 50; // 1m in the prototype scale.
                 const edgeCount = anchors.length - 1 + (el.closed || el.shape === 'rect' ? 1 : 0);
                 for (let i = 0; i < edgeCount; i++) {
+                    if (onlyIndex !== null && i !== onlyIndex) continue;
                     const a = anchors[i];
                     const b = anchors[(i + 1) % anchors.length];
                     const distance = Math.sqrt((b.x - a.x) ** 2 + (b.y - a.y) ** 2);
@@ -11667,13 +11726,13 @@
                     const dx = b.x - a.x;
                     const dy = b.y - a.y;
                     const len = Math.max(1, Math.sqrt(dx * dx + dy * dy));
-                    const sideOffset = (el.shape === 'pen' || el.shape === 'curve') ? -28 / this.state.zoom : 0;
+                    const sideOffset = 0;
                     const mx = (midX + (-dy / len) * sideOffset) * this.state.zoom + this.state.panX;
                     const my = (midY + (dx / len) * sideOffset) * this.state.zoom + this.state.panY;
                     const add = document.createElement('button');
                     add.className = 'add-anchor';
                     add.textContent = '+';
-                    add.title = '新增边';
+                    add.title = '在当前边添加锚点';
                     add.style.left = (mx - 16) + 'px';
                     add.style.top = (my - 16) + 'px';
                     add.dataset.used = '0';
@@ -11849,21 +11908,12 @@
                     && index >= 0
                     && index < segmentCount;
                 if (!terminalGeometryEditor && !hasEditableSegment) return;
-                const isCurved = hasEditableSegment && this.isControlBent(el, index);
                 const wrap = document.createElement('div');
                 wrap.className = 'segment-actions';
                 const addBtn = document.createElement('button');
                 addBtn.className = 'segment-action-btn';
                 addBtn.title = '新增顶点';
                 addBtn.innerHTML = '+';
-                const curveBtn = document.createElement('button');
-                curveBtn.className = `segment-action-btn ${isCurved ? 'active' : ''}`;
-                curveBtn.title = '转为曲线';
-                curveBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M4 17C8 5 16 5 20 17"/><path d="M16 7h4v4"/></svg>';
-                const straightBtn = document.createElement('button');
-                straightBtn.className = `segment-action-btn ${!isCurved ? 'active' : ''}`;
-                straightBtn.title = '恢复直线';
-                straightBtn.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="6" cy="17" r="2"/><circle cx="18" cy="7" r="2"/><path d="M8 15.4L16 8.6"/></svg>';
                 const cancelBtn = document.createElement('button');
                 cancelBtn.className = 'segment-action-btn geometry-cancel';
                 cancelBtn.title = '取消创建';
@@ -11891,19 +11941,17 @@
                 };
                 if (hasEditableSegment) {
                     bind(addBtn, () => this.insertAnchorAfter(el, index));
-                    bind(curveBtn, () => this.curveSegment(el, index));
-                    bind(straightBtn, () => this.straightenSegment(el, index));
                 }
                 if (terminalGeometryEditor) bind(propertiesBtn, () => this.openLayerEditor(el.id));
-                if (terminalGeometryEditor) bind(cancelBtn, () => pendingGeometry ? this.cancelPendingGeometry() : this.deselect());
-                if (terminalGeometryEditor) bind(confirmBtn, () => pendingGeometry ? this.confirmPendingGeometry() : this.deselect());
+                bind(cancelBtn, () => pendingGeometry ? this.cancelPendingGeometry() : this.deselect());
+                bind(confirmBtn, () => pendingGeometry ? this.confirmPendingGeometry() : this.deselect());
                 if (terminalGeometryEditor) {
                     wrap.append(cancelBtn);
-                    if (hasEditableSegment) wrap.append(addBtn, curveBtn, straightBtn);
+                    if (hasEditableSegment) wrap.append(addBtn);
                     wrap.append(propertiesBtn);
                     wrap.append(confirmBtn);
                 } else {
-                    wrap.append(addBtn, curveBtn, straightBtn);
+                    wrap.append(cancelBtn, addBtn, confirmBtn);
                 }
                 document.querySelector('.app').appendChild(wrap);
                 document.getElementById('edgePathEntry')?.classList.remove('show');
@@ -12088,7 +12136,21 @@
                 this.updateRackCreatedMarkers();
                 // Remove old rendered elements
                 document.querySelectorAll('.segment-actions').forEach(z => z.remove());
-                this.canvas.querySelectorAll('.zone, .zone-circle, .zone-line, .zone-pen, .point-marker, .self-dump-wait-ring, .self-dump-distance-guide, .gate-map-overlay, .anchor-overlay, .edit-anchor, .add-anchor, .curve-handle-line, .center-preview, .center-preview-dot, .comm-stop-zone, .parking-intersection, .ai-candidate, .base-map-car, .base-map-stopper, .ai-reference, .ai-reference-anchor').forEach(z => z.remove());
+                this.canvas.querySelectorAll('.zone, .zone-circle, .zone-line, .zone-pen, .point-marker, .self-dump-wait-ring, .self-dump-distance-guide, .gate-map-overlay, .anchor-overlay, .edit-anchor, .add-anchor, .curve-handle-line, .anchor-alignment-guide, .center-preview, .center-preview-dot, .comm-stop-zone, .parking-intersection, .ai-candidate, .base-map-car, .base-map-stopper, .ai-reference, .ai-reference-anchor').forEach(z => z.remove());
+                if (this.state.anchorAlignmentGuide) {
+                    const source = this.state.anchorAlignmentGuide;
+                    const x1 = source.x1 * this.state.zoom + this.state.panX;
+                    const y1 = source.y1 * this.state.zoom + this.state.panY;
+                    const x2 = source.x2 * this.state.zoom + this.state.panX;
+                    const y2 = source.y2 * this.state.zoom + this.state.panY;
+                    const guide = document.createElement('div');
+                    guide.className = 'anchor-alignment-guide';
+                    guide.style.left = x1 + 'px';
+                    guide.style.top = y1 + 'px';
+                    guide.style.width = Math.max(20, Math.hypot(x2 - x1, y2 - y1)) + 'px';
+                    guide.style.transform = `rotate(${Math.atan2(y2 - y1, x2 - x1)}rad)`;
+                    this.canvas.appendChild(guide);
+                }
                 const elevatorEditing = this.state.elements.find(item => item.id === this.state.layerEditId && item.type === 'elevator');
                 const elevatorStep = elevatorEditing?.properties?.editorStep || 0;
                 const elevatorFocusId = elevatorStep === 2
@@ -12290,6 +12352,8 @@
                         this.canvas.appendChild(z);
                         if (el.type === 'comm-zone') this.renderCommStopZones(el, isSel, layerZ);
                     } else if (el.shape === 'circle') {
+                        // 圆形只支持整体选中，不保留或渲染单段圆弧状态。
+                        if (isSel && this.state.selectedSegmentIndex !== -1) this.state.selectedSegmentIndex = -1;
                         const z = document.createElement('div');
                         z.className = `zone-circle ${info.css} ${el.type === 'carpet-zone' ? 'carpet-zone-map' : ''} ${isSel ? 'selected' : ''} ${el.type !== this.state.currentTool || workflowLocked ? 'element-locked' : ''}`;
                         z.style.zIndex = layerZ;
@@ -12688,6 +12752,9 @@
                                 this.renderSegmentActions(el, -1);
                             } else if (el.type !== 'elevator' && (el.shape === 'pen' || el.shape === 'curve' || el.shape === 'circle')) {
                                 this.renderSegmentActions(el, el.shape === 'circle' ? -1 : this.state.selectedSegmentIndex);
+                                if ((el.shape === 'pen' || el.shape === 'curve') && this.state.selectedSegmentIndex >= 0) {
+                                    this.renderAddAnchorControls(el, anchors, this.state.selectedSegmentIndex);
+                                }
                             } else if (el.type !== 'elevator' && el.type !== 'waiting-zone' && el.type !== 'glass-zone' && el.type !== 'comm-zone' && el.type !== 'parking-stopper') {
                                 this.renderAddAnchorControls(el, anchors);
                                 if (!document.documentElement.classList.contains('web-embed') && el.shape === 'rect') {
@@ -12724,6 +12791,8 @@
                                 this.state.selectedAnchorIndex = el.shape === 'circle' ? -1 : i;
                                 this.state.selectedAnchorType = el.shape === 'circle' ? null : 'anchor';
                                 this.state.anchorSnapActive = false;
+                                this.state.anchorAlignmentGuide = null;
+                                if (['pen', 'curve'].includes(el.shape)) this.straightenAllPathSegments(el);
                                 this.state.isDraggingAnchor = true;
                                 this.state.dragAnchorIndex = i;
                                 const pos = this.getPos(e);
@@ -14456,9 +14525,6 @@
                         + '<input class="lp-editor-input" id="layerEditName" value="' + this.escapeHtml(el.name) + '">'
                         + '</div>';
                 }
-                if (el.type === 'return-point') {
-                    html += this.renderRobotHeadingEditor(el, '机器人到达返航点后的朝向，0°为地图正上方。');
-                }
                 if (DEVICE_STATION_TYPES.has(el.type)) {
                     html += '<div class="lp-editor-section"><div class="lp-editor-label">MAC 地址</div><div class="lp-editor-help">' + this.escapeHtml(el.properties?.deviceId || '—') + '</div></div>';
                     if (el.type === 'self-dump-station') html += this.renderSelfDumpWaitingPointEditor(el);
@@ -14471,7 +14537,6 @@
                     const p = el.properties || {};
                     const criticalFieldsLocked = this.isElevatorConfigurationComplete(el) && this.state.elevatorCriticalEditId !== el.id;
                     const criticalInputAttrs = criticalFieldsLocked ? ' readonly aria-readonly="true" onclick="app.requestElevatorCriticalEdit(this.id)"' : '';
-                    const ridePoint = this.state.elements.find(item => item.id === p.ridePoint);
                     html += '<div class="lp-editor-section"><div class="lp-editor-help">' + (p.awaitingCabin ? '请先填写电梯信息，确认后依次框选轿厢、记录待梯点和乘梯点。' : '电梯信息与地图位置已配置，可在此修改信息。') + '</div>'
                         + '<div class="lp-editor-label">梯控类型</div><div class="lp-editor-options">'
                         + '<button class="lp-editor-option ' + ((p.editingControllerType || p.controllerType) !== 'self' ? 'active' : '') + '" onclick="app.setElevatorController(\'cloud\')"><span>云梯控</span></button>'
@@ -14479,7 +14544,6 @@
                         + '<label class="lp-editor-label">电梯名称</label><input class="lp-editor-input" id="elevatorName" value="' + this.escapeHtml(p.elevatorName || el.name) + '" placeholder="请输入电梯名称">'
                         + '<label class="lp-editor-label">电梯识别码 / 梯控 ID</label><input class="lp-editor-input" id="elevatorId" value="' + this.escapeHtml(p.elevatorId || '') + '" placeholder="请输入识别码"' + criticalInputAttrs + '>'
                         + '<label class="lp-editor-label">电梯组</label><input class="lp-editor-input" id="elevatorGroup" value="' + this.escapeHtml(p.elevatorGroup || '') + '" placeholder="请输入电梯组"' + criticalInputAttrs + '></div>';
-                    if (ridePoint) html += this.renderRobotHeadingEditor(ridePoint, '请将机器人正面朝向电梯，确保进入电梯时姿态正确。0°为地图正上方。');
                 } else if (el.type === 'gate') {
                     const p = el.properties || {};
                     const gateIdUnlocked = this.state.gateCriticalEditId === el.id;
@@ -15766,9 +15830,9 @@
             showGlobalView() {
                 const rect = this.canvas.getBoundingClientRect();
                 const zoom = document.documentElement.classList.contains('web-embed') ? 0.72 : 0.58;
-                const webCenterCorrection = document.documentElement.classList.contains('web-embed') ? 40 * zoom : 0;
-                const panX = rect.width * (1 - zoom) / 2 + webCenterCorrection;
-                const panY = rect.height * (1 - zoom) / 2;
+                const webViewOffset = document.documentElement.classList.contains('web-embed');
+                const panX = rect.width * (1 - zoom) / 2 + (webViewOffset ? 220 : 0);
+                const panY = rect.height * (1 - zoom) / 2 + (webViewOffset ? 125 : 0);
                 this.state.viewPerspective = 'global';
                 this.syncViewPerspectiveButton();
                 this.animateViewTransform(zoom, panX, panY);
