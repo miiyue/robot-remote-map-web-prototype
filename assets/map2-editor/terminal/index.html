@@ -4858,8 +4858,10 @@
                 this.syncLayerPanelState();
                 this.updateWorkspaceChromeLayout();
                 const initialRect = this.canvas.getBoundingClientRect();
-                const webCenterCorrection = document.documentElement.classList.contains('web-embed') ? 40 * this.state.zoom : 0;
-                this.state.panX = initialRect.width * (1 - this.state.zoom) / 2 + webCenterCorrection;
+                const webCenterOffset = document.documentElement.classList.contains('web-embed')
+                    ? (parseFloat(getComputedStyle(document.querySelector('.app')).getPropertyValue('--workspace-center-offset')) || 0)
+                    : 0;
+                this.state.panX = initialRect.width * (1 - this.state.zoom) / 2 - webCenterOffset * this.state.zoom;
                 this.state.panY = initialRect.height * (1 - this.state.zoom) / 2;
                 this.updateTransform();
                 window.addEventListener('resize', () => this.updateWorkspaceChromeLayout());
@@ -4883,16 +4885,20 @@
                 this.syncRackCategories();
                 requestAnimationFrame(() => requestAnimationFrame(() => {
                     const settledRect = this.canvas.getBoundingClientRect();
-                    const settledCorrection = document.documentElement.classList.contains('web-embed') ? 40 * this.state.zoom : 0;
-                    this.state.panX = settledRect.width * (1 - this.state.zoom) / 2 + settledCorrection;
+                    const settledOffset = document.documentElement.classList.contains('web-embed')
+                        ? (parseFloat(getComputedStyle(document.querySelector('.app')).getPropertyValue('--workspace-center-offset')) || 0)
+                        : 0;
+                    this.state.panX = settledRect.width * (1 - this.state.zoom) / 2 - settledOffset * this.state.zoom;
                     this.state.panY = settledRect.height * (1 - this.state.zoom) / 2;
                     this.updateTransform();
                     this.updateWorkspaceChromeLayout();
                 }));
                 setTimeout(() => {
                     const settledRect = this.canvas.getBoundingClientRect();
-                    const settledCorrection = document.documentElement.classList.contains('web-embed') ? 40 * this.state.zoom : 0;
-                    this.state.panX = settledRect.width * (1 - this.state.zoom) / 2 + settledCorrection;
+                    const settledOffset = document.documentElement.classList.contains('web-embed')
+                        ? (parseFloat(getComputedStyle(document.querySelector('.app')).getPropertyValue('--workspace-center-offset')) || 0)
+                        : 0;
+                    this.state.panX = settledRect.width * (1 - this.state.zoom) / 2 - settledOffset * this.state.zoom;
                     this.state.panY = settledRect.height * (1 - this.state.zoom) / 2;
                     this.updateTransform();
                     this.updateWorkspaceChromeLayout();
@@ -15838,8 +15844,10 @@
             showGlobalView() {
                 const rect = this.canvas.getBoundingClientRect();
                 const zoom = document.documentElement.classList.contains('web-embed') ? 0.72 : 0.58;
-                const webCenterCorrection = document.documentElement.classList.contains('web-embed') ? 40 * zoom : 0;
-                const panX = rect.width * (1 - zoom) / 2 + webCenterCorrection;
+                const webCenterOffset = document.documentElement.classList.contains('web-embed')
+                    ? (parseFloat(getComputedStyle(document.querySelector('.app')).getPropertyValue('--workspace-center-offset')) || 0)
+                    : 0;
+                const panX = rect.width * (1 - zoom) / 2 - webCenterOffset * zoom;
                 const panY = rect.height * (1 - zoom) / 2;
                 this.state.viewPerspective = 'global';
                 this.syncViewPerspectiveButton();
@@ -15909,6 +15917,19 @@
                 const align = () => {
                     const rect = this.canvas.getBoundingClientRect();
                     const center = rect.left + rect.width / 2;
+                    const localCenter = rect.width / 2;
+                    const previousLocalCenter = this._workspaceCanvasLocalCenter;
+                    if (document.documentElement.classList.contains('web-embed') && Number.isFinite(previousLocalCenter)) {
+                        const localCenterDelta = localCenter - previousLocalCenter;
+                        if (Math.abs(localCenterDelta) > 0.01) {
+                            const appRoot = document.querySelector('.app');
+                            const currentOffset = parseFloat(getComputedStyle(appRoot).getPropertyValue('--workspace-center-offset')) || 0;
+                            appRoot.style.setProperty('--workspace-center-offset', (currentOffset - localCenterDelta) + 'px');
+                            this.state.panX += localCenterDelta;
+                            this.updateTransform();
+                        }
+                    }
+                    this._workspaceCanvasLocalCenter = localCenter;
                     document.querySelectorAll('.bottom-toolbar, .path-actions, .segment-actions, .global-mode-tip, .edge-path-entry, .edge-path-toolbar, .ai-reference-toolbar').forEach(element => {
                         element.style.left = center + 'px';
                     });
