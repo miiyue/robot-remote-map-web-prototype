@@ -1,0 +1,16 @@
+<svg width="48" height="48" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="nibMetal" x1="8" y1="4" x2="30" y2="34" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="0.45" stop-color="#D6DCE1"/>
+      <stop offset="0.72" stop-color="#858F98"/>
+      <stop offset="1" stop-color="#F8FAFB"/>
+    </linearGradient>
+  </defs>
+  <path d="M19 3C16 9 10 12 8 22L15 30H23L30 22C28 12 22 9 19 3Z" fill="url(#nibMetal)" stroke="#9AA3AB" stroke-width="1.1"/>
+  <path d="M19 4.5C21.5 9.3 25.7 13 27.8 21.5L22.2 28.7H19Z" fill="#318FEB" fill-opacity="0.16"/>
+  <circle cx="19" cy="18" r="3.2" fill="#181A1C"/>
+  <path d="M19 21V29" stroke="#33383D" stroke-width="2" stroke-linecap="round"/>
+  <path d="M13 31H25L27 35H11L13 31Z" fill="url(#nibMetal)" stroke="#89939C"/>
+  <path d="M14 33H24" stroke="#58ACFF" stroke-opacity="0.9" stroke-linecap="round"/>
+</svg>
