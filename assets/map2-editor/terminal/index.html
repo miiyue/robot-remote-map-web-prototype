@@ -5490,7 +5490,7 @@
                     if (el) {
                         this.closeOverlapPicker();
                         if (!this.select(el.id)) return;
-                        if (!this.isPositionLockedElement(el)) {
+                        if (!this.isPositionLockedElement(el) && !this.isPushPathLocked(el)) {
                             this.state.isDraggingElement = true;
                             this.state.dragStart = { x: p.x, y: p.y };
                         }
@@ -5629,7 +5629,7 @@
                 } else if (this.state.isDraggingElement && this.state.selectedId) {
                     const el = this.state.elements.find(e => e.id === this.state.selectedId);
                     if (el) {
-                        if (this.isPositionLockedElement(el)) {
+                        if (this.isPositionLockedElement(el) || this.isPushPathLocked(el)) {
                             this.state.isDraggingElement = false;
                             this.state.dragStart = null;
                             this.state.elementGesture = null;
@@ -9905,6 +9905,7 @@
                 for (let i = this.state.elements.length - 1; i >= 0; i--) add(this.state.elements[i]);
                 for (const el of ordered) {
                     if (el.type !== this.state.currentTool || !['pen', 'curve'].includes(el.shape)) continue;
+                    if (this.isPushPathLocked(el)) continue;
                     const segmentIndex = this.findNearestPathSegment(el, x, y);
                     if (segmentIndex < 0) continue;
                     const sameSegment = this.state.selectedId === el.id
@@ -10630,11 +10631,18 @@
                             ...(newEl.properties || {}),
                             pushSide: this.state.pushSide,
                             drawMethod: 'push',
-                            lockedAfterAutoClose: pathTool === 'forbidden' && !!newEl.closed
+                            lockedAfterAutoClose: true
                         };
                     }
                 } else if (anchors.length >= (closed ? 3 : 2)) {
                     newEl = this.addElement(pathTool, 'pen', 0, 0, 0, 0, anchors, closed);
+                    if (newEl && pathTool === 'teaching-route') {
+                        newEl.properties = {
+                            ...(newEl.properties || {}),
+                            drawMethod: 'push',
+                            lockedAfterAutoClose: true
+                        };
+                    }
                 } else if (anchors.length === 1 && !CLOSED_AREA_TOOLS.has(pathTool) && pathTool !== 'virtual-wall') {
                     newEl = this.addElement(pathTool, 'point', anchors[0].x, anchors[0].y, 0, 0);
                 }
@@ -10933,6 +10941,11 @@
                     this.state.selectedSegmentIndex = -1;
                 }
                 this.state.selectedId = id;
+                if (this.isPushPathLocked(el)) {
+                    this.state.selectedSegmentIndex = -1;
+                    this.state.selectedAnchorIndex = -1;
+                    this.state.selectedAnchorType = null;
+                }
                 if (el.shape === 'circle') {
                     this.state.selectedSegmentIndex = -1;
                     this.state.selectedAnchorIndex = -1;
@@ -10986,7 +10999,7 @@
                 const selected = this.state.elements.find(el => el.id === this.state.selectedId);
                 const invalidElement = this.state.elements.find(el => this.getBlockingValidationMessage(el));
                 const hasBlockingValidation = !!invalidElement || !!this.state.pathPreviewInvalid;
-                if (copyButton) copyButton.disabled = !selected || selected.type === 'self-dump-wait-point' || this.isPositionLockedElement(selected) || hasBlockingValidation;
+                if (copyButton) copyButton.disabled = !selected || selected.type === 'self-dump-wait-point' || this.isPositionLockedElement(selected) || this.isPushPathLocked(selected) || hasBlockingValidation;
                 if (deleteButton) deleteButton.disabled = !selected;
                 ['areaDropdownBtn', 'areaChevronBtn', 'penBtn', 'centerPenBtn', 'autoForbiddenBtn'].forEach(id => {
                     const button = document.getElementById(id);
@@ -11015,13 +11028,17 @@
                 return !!el && (POSITION_LOCKED_DEVICE_TYPES.has(el.type) || !!el.properties?.positionLocked);
             }
 
+            isPushPathLocked(el) {
+                return !!el && el.properties?.drawMethod === 'push';
+            }
+
             beginElementGesture(el, point, segmentEligible = false) {
                 const hits = this.getPreferredHitElements(this.hitTestAll(point.x, point.y));
                 if (this.state.currentTool === 'virtual-wall' && !hits.some(item => item.id === el.id)) return;
                 this.closeOverlapPicker();
                 if (!this.select(el.id)) return;
                 if (this.state.mode !== 'edit') return;
-                if (this.isPositionLockedElement(el)) return;
+                if (this.isPositionLockedElement(el) || this.isPushPathLocked(el)) return;
                 this.state.isDraggingElement = true;
                 this.state.dragStart = { x: point.x, y: point.y };
                 this.state.elementGesture = {
@@ -11037,7 +11054,7 @@
 
             copySelected() {
                 const source = this.state.elements.find(e => e.id === this.state.selectedId);
-                if (!source || this.isPositionLockedElement(source)) return;
+                if (!source || this.isPositionLockedElement(source) || this.isPushPathLocked(source)) return;
                 const validationMessage = this.getBlockingValidationMessage(source);
                 if (validationMessage) {
                     this.showLayerEditorTip(validationMessage);
@@ -12701,7 +12718,7 @@
                             path.setAttribute('fill', 'none');
                         }
                         svg.appendChild(path);
-                        if (isSel && this.state.selectedSegmentIndex >= 0 && this.state.selectedSegmentIndex < this.getPathSegmentCount(el)) {
+                        if (isSel && !this.isPushPathLocked(el) && this.state.selectedSegmentIndex >= 0 && this.state.selectedSegmentIndex < this.getPathSegmentCount(el)) {
                             const segIndex = this.state.selectedSegmentIndex;
                             const a = transformedAnchors[segIndex];
                             const b = transformedAnchors[(segIndex + 1) % transformedAnchors.length];
@@ -12757,8 +12774,7 @@
                             e.stopPropagation();
                             e.preventDefault();
                             const p = this.getPos(e);
-                            const segmentEditable = !el.properties?.lockedAfterAutoClose
-                                && !(el.type === 'teaching-route' && el.properties?.drawMethod === 'push');
+                            const segmentEditable = !this.isPushPathLocked(el) && !el.properties?.lockedAfterAutoClose;
                             this.beginElementGesture(el, p, segmentEditable);
                         };
                         z.onclick = (e) => { e.stopPropagation(); };
@@ -12767,8 +12783,7 @@
                     }
 
                     // Render anchor points for selected element in edit mode
-                    const anchorEditable = !el.properties?.lockedAfterAutoClose
-                        && !(el.type === 'teaching-route' && el.properties?.drawMethod === 'push');
+                    const anchorEditable = !this.isPushPathLocked(el) && !el.properties?.lockedAfterAutoClose;
                     if (isSel && this.state.mode === 'edit' && anchorEditable) {
                         const anchors = el.shape === 'point' ? [] : this.getEditableAnchors(el);
                         if (['rect', 'line', 'pen', 'curve', 'circle'].includes(el.shape) && anchors.length >= 2) {
