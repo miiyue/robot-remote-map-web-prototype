@@ -1086,7 +1086,7 @@
         .map-grid-overlay {
             position: absolute;
             inset: 0;
-            z-index: 0;
+            z-index: 60;
             background-image:
                 linear-gradient(rgba(76, 88, 104, 0.1) 1px, transparent 1px),
                 linear-gradient(90deg, rgba(76, 88, 104, 0.1) 1px, transparent 1px);
@@ -2833,6 +2833,13 @@
         .zoom-btn:active { transform: scale(0.9); }
         .zoom-btn.active { background: var(--primary); color: #fff; }
         .zoom-btn svg { width: 22px; height: 22px; stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; }
+        .zoom-btn .rotate-map-icon { width: 32px; height: 32px; }
+        .zoom-btn .rotate-map-icon text {
+            fill: #17324D; stroke: #E6F0FF; stroke-width: 2.2px; paint-order: stroke fill;
+            stroke-linejoin: round; font-size: 11px; font-weight: 800;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .zoom-btn .rotate-map-icon .rotate-angle-degree { font-size: 7px; }
 
         .display-control {
             position: absolute;
@@ -3179,6 +3186,38 @@
         .rack-item .ri-icon svg { width: 28px; height: 28px; }
         .rack-item .ri-label { max-width: 80px; font-size: 15px; line-height: 1.18; }
         .layer-panel { width: 320px; }
+        /* [MAP2:TERMINAL-FLOATING-PANELS] 机器终端左右贴边抽屉覆盖在固定地图画布上 */
+        html:not(.web-embed) .main { position:relative; }
+        html:not(.web-embed) .canvas {
+            position:absolute; inset:0; z-index:0;
+        }
+        html:not(.web-embed) .tool-rack {
+            position:absolute; left:0; top:0; bottom:0; z-index:80;
+            height:auto; border:0; border-radius:0;
+            overflow:hidden; box-shadow:4px 0 12px rgba(19,29,43,.06);
+        }
+        html:not(.web-embed) .tool-rack.collapsed {
+            width:0; border:0; box-shadow:none;
+        }
+        html:not(.web-embed) .layer-panel:not(.editor-modal) {
+            position:absolute; right:0; top:0; bottom:0; z-index:80;
+            width:320px; height:auto; border:0; border-radius:0;
+            overflow:hidden; box-shadow:-4px 0 12px rgba(19,29,43,.06);
+        }
+        html:not(.web-embed) .layer-panel.collapsed:not(.editor-modal) {
+            width:0; border:0; box-shadow:none;
+        }
+        html:not(.web-embed) .layer-panel.layer-panel-underlay {
+            position:absolute; right:0; top:0; bottom:0; z-index:80;
+            flex:none; width:320px; height:auto; border:0;
+            border-radius:0; overflow:hidden;
+            box-shadow:-4px 0 12px rgba(19,29,43,.06);
+        }
+        html:not(.web-embed) .display-control { transition:right .25s; }
+        html:not(.web-embed) .main:has(> .layer-panel:not(.collapsed):not(.editor-modal)) .display-control,
+        html:not(.web-embed) .main:has(> .layer-panel-underlay) .display-control { right:336px; }
+        html:not(.web-embed) .save-group.layer-open,
+        html:not(.web-embed) .zoom-group.layer-open { right:336px; }
         html:not(.web-embed) .layer-panel.editor-modal {
             position: fixed; left: 50%; top: 50%; z-index: 10020;
             width: min(680px, calc(100vw - 128px)) !important; height: auto;
@@ -3907,8 +3946,8 @@
 
             <!-- 地图画布 -->
             <div class="canvas" id="canvas">
-                <div class="map-rotation-layer" id="mapRotationLayer">
                 <div class="map-grid-overlay" id="mapGridOverlay"></div>
+                <div class="map-rotation-layer" id="mapRotationLayer">
                 <div class="grid-layer" id="gridLayer">
                     <div class="supermarket-map">
                         <img class="preset-map-image" src="assets/maps/parking-lot.png?v=20261014-5" alt="">
@@ -3926,7 +3965,7 @@
                         <div class="annotated-point" style="left:13%;top:68%;"><span>标注点位</span></div>
                     </div>
                     <div class="enhanced-map-layer">
-                        <img class="reflectivity-map-image" src="assets/maps/reflectivity.png?v=20261014-1" alt="">
+                        <img class="reflectivity-map-image" src="assets/maps/reflectivity.png?v=20261103-1" alt="">
                     </div>
                     <div class="ai-recognition-layer" aria-hidden="true">
                         <div class="ai-speed-bump" style="left:31%;top:29.9%;transform:rotate(90deg);"><span></span></div>
@@ -3952,7 +3991,7 @@
                 <div class="ai-reference-box-preview" id="aiReferenceBoxPreview"></div>
                 <div class="center-reticle" id="centerReticle"><span class="center-reticle-dot"></span></div>
                 <div class="zoom-group" id="zoomGroup">
-                    <button class="zoom-btn terminal-only" id="mapRotateBtn" onclick="app.rotateMapClockwise()" title="顺时针旋转地图 15°" aria-label="顺时针旋转地图 15°"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 10-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
+                    <button class="zoom-btn" id="mapRotateBtn" onclick="app.rotateMapClockwise()" title="顺时针旋转地图 15°" aria-label="顺时针旋转地图 15°"><svg class="rotate-map-icon" viewBox="0 0 32 32" aria-hidden="true"><path d="M26 14A10.5 10.5 0 1 0 23.5 23.5"/><path d="M26 7v7h-7"/><text x="16" y="16.5" text-anchor="middle" dominant-baseline="middle"><tspan>15</tspan><tspan class="rotate-angle-degree" dx="0.2" dy="-2">°</tspan></text></svg></button>
                     <button class="zoom-btn" id="viewToggleBtn" onclick="app.toggleViewPerspective()" title="切换至机器人最佳观察视角" aria-label="切换至机器人最佳观察视角" aria-pressed="false"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/></svg></button>
                 </div>
                 <div class="display-control has-onboarding">
@@ -4846,6 +4885,7 @@
                 this.mapLayer = document.getElementById('mapRotationLayer');
                 this.canvas.appendChild = node => this.mapLayer.appendChild(node);
                 this.grid = document.getElementById('gridLayer');
+                this.robotMarker = this.grid.querySelector('.robot-marker');
                 this.coords = document.getElementById('coords');
                 this.layerList = document.getElementById('layerList');
                 this.layerFooter = document.getElementById('layerFooter');
@@ -9394,7 +9434,7 @@
                     return;
                 }
                 const el = this.addElement(this.state.currentTool, 'point', 720, 500, 0, 0);
-                el.properties = { ...(el.properties || {}), placedAtRobot: true, positionLocked: true };
+                el.properties = { ...(el.properties || {}), placedAtRobot: true };
                 if (!document.documentElement.classList.contains('web-embed')) {
                     this.state.pendingGeometryId = null;
                     this.setMode('edit');
@@ -15784,9 +15824,31 @@
             updateTransform() {
                 this.grid.style.transform = `translate(${this.state.panX}px,${this.state.panY}px) scale(${this.state.zoom})`;
                 this.mapLayer.style.transform = `rotate(${this.state.mapRotation || 0}deg)`;
+                this.syncRobotMarkerRotation();
                 this.updateGridScale();
                 this.requestRender();
                 this.refreshActivePathPreview();
+            }
+
+            syncRobotMarkerRotation() {
+                if (!this.robotMarker) return;
+                const rotation = this.state.mapRotation || 0;
+                const zoom = this.state.zoom || 1;
+                const robotX = 720;
+                const robotY = 500;
+                const rect = this.canvas.getBoundingClientRect();
+                const centerX = rect.width / 2;
+                const centerY = rect.height / 2;
+                const targetX = this.state.panX + robotX * zoom;
+                const targetY = this.state.panY + robotY * zoom;
+                const radians = -rotation * Math.PI / 180;
+                const dx = targetX - centerX;
+                const dy = targetY - centerY;
+                const sourceX = centerX + dx * Math.cos(radians) - dy * Math.sin(radians);
+                const sourceY = centerY + dx * Math.sin(radians) + dy * Math.cos(radians);
+                this.robotMarker.style.left = ((sourceX - this.state.panX) / zoom) + 'px';
+                this.robotMarker.style.top = ((sourceY - this.state.panY) / zoom) + 'px';
+                this.robotMarker.style.transform = `translate(-50%,-50%) rotate(${-rotation}deg)`;
             }
 
             requestRender() {
